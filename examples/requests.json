@@ -1,0 +1,28 @@
+[
+  {
+    "requestUrl": "/status"
+  },
+  {
+    "requestUrl": "/users/list",
+    "requestMethod": "GET"
+  },
+  {
+    "requestUrl": "/users/login",
+    "requestMethod": "POST",
+    "requestBody": {
+      "username": "amazing@email.com",
+      "password": "a_very_strnong_password"
+    }
+  },
+  {
+    "requestUrl": "/notifications/count",
+    "requestMethod": "POST",
+    "requestHeaders": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer super_token"
+    },
+    "requestBody": {
+      "type": "feed"
+    }
+  }
+]
