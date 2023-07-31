@@ -5,8 +5,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"strconv"
-	"strings"
 )
 
 func help() {
@@ -16,55 +14,13 @@ func help() {
 
 // stats checks the general statistics
 func stats(srcRaw string) error {
-	sourceArr, err := parseSource(srcRaw)
+	filePath, err := sourceToFilePath(srcRaw)
 	if err != nil {
 		return err
 	}
 
-	statObj := struct {
-		count         int
-		methodCount   map[string]int
-		endpointCount map[string]int
-	}{
-		methodCount:   make(map[string]int),
-		endpointCount: make(map[string]int),
-		count:         0,
-	}
-
-	for _, src := range sourceArr {
-		// count method
-		method := strings.ToUpper(src.RequestMethod)
-		oldCount := statObj.methodCount[method]
-		statObj.methodCount[method] = oldCount + 1
-
-		// count endpoint
-		url := method + " " + strings.ToLower(src.RequestUrl)
-		oldCount = statObj.endpointCount[url]
-		statObj.endpointCount[url] = oldCount + 1
-
-		statObj.count += 1
-	}
-
-	// now we can log the stat object
-	tmpl := "\n\ncount: " + strconv.Itoa(statObj.count)
-
-	if statObj.count > 0 {
-		tmpl += "\n"
-	}
-
-	for k, v := range statObj.methodCount {
-		tmpl += "\nmethod " + k + ": " + strconv.Itoa(v)
-	}
-
-	if statObj.count > 0 {
-		tmpl += "\n"
-	}
-
-	for k, v := range statObj.endpointCount {
-		tmpl += "\nendpoint " + k + ": " + strconv.Itoa(v)
-	}
-
-	log.Println(tmpl + "\n")
+	// TODO: need to read one by one so that we dont screw ourselves
+	log.Println("file path", filePath)
 
 	return nil
 }

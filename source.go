@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-redis/redis"
 )
@@ -48,26 +51,7 @@ func removeSpaces(raw string) string {
 	return raw
 }
 
-func isRawSource(raw string) bool {
-	return strings.Contains(strings.ToLower(raw), "requesturl") && strings.Contains(raw, ";") &&
-		strings.Contains(raw, ":")
-}
-
-func isJsonSingleSource(raw string) bool {
-	return strings.Index(raw, "{") == 0 && strings.LastIndex(raw, "}") == len(raw)-1
-}
-
-func isJsonSource(raw string) bool {
-	return strings.Index(raw, "[") == 0 && strings.LastIndex(raw, "]") == len(raw)-1
-}
-
-func isRedisSource(raw string) bool {
-	return strings.Index(raw, "redis://") == 0 || strings.Index(raw, "rediss://") == 0
-}
-
-// parseRawSource takes a raw string and converts it to
-// the source array we use on the tool
-func parseRawSource(raw string) ([]source, error) {
+func rawToSource(raw string) ([]source, error) {
 	data := []source{}
 
 	rawArr := strings.Split(raw, "\n")
@@ -123,12 +107,47 @@ func parseRawSource(raw string) ([]source, error) {
 		}
 	}
 
-	return sanitizeSources(data), nil
+	return data, nil
 }
 
-// parseJsonSource takes a raw valid json string and converts it to
+func isRawSource(raw string) bool {
+	return strings.Contains(strings.ToLower(raw), "requesturl") && strings.Contains(raw, ";") &&
+		strings.Contains(raw, ":")
+}
+
+func isJsonSingleSource(raw string) bool {
+	return strings.Index(raw, "{") == 0 && strings.LastIndex(raw, "}") == len(raw)-1
+}
+
+func isJsonSource(raw string) bool {
+	return strings.Index(raw, "[") == 0 && strings.LastIndex(raw, "]") == len(raw)-1
+}
+
+func isRedisSource(raw string) bool {
+	return strings.Index(raw, "redis://") == 0 || strings.Index(raw, "rediss://") == 0
+}
+
+// convertRawSource takes a raw string and saves it to a file to be used
 // the source array we use on the tool
-func parseJsonSource(raw []byte) ([]source, error) {
+func convertRawSource(raw string, filePath string) error {
+	// time to append to file
+	f, err := os.OpenFile(filePath,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	defer f.Close()
+	if err != nil {
+		return err
+	}
+
+	if _, err := f.WriteString(raw); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// convertJsonSource takes a valid json string and converts it to a file
+// that the software know how to use
+func convertJsonSource(raw []byte, filePath string) error {
 	// normalize the single format
 	if isJsonSingleSource(string(raw)) {
 		raw = []byte("[" + string(raw) + "]")
@@ -137,17 +156,37 @@ func parseJsonSource(raw []byte) ([]source, error) {
 	// handle the array format
 	var data []source
 	if err := json.Unmarshal(raw, &data); err != nil {
-		return data, err
+		return err
 	}
 
-	return sanitizeSources(data), nil
+	// time to convert and send to a file
+	newRaw := ""
+	for _, req := range data {
+		headers, err := json.Marshal(req.RequestHeaders)
+		if err != nil {
+			return err
+		}
+
+		body, err := json.Marshal(req.RequestBody)
+		if err != nil {
+			return err
+		}
+
+		newRaw += fmt.Sprintf(
+			"requestUrl:%s;requestMethod:%s;requestHeaders:%s;requestBody:%s\n",
+			req.RequestUrl,
+			req.RequestMethod,
+			headers,
+			body,
+		)
+	}
+
+	return convertRawSource(newRaw, filePath)
 }
 
 // parseRedisSource takes a redis url and fetches all keys with a pattern
 // and then converts to a source array we use on the tool
-func parseRedisSource(srcRaw string) ([]source, error) {
-	var data []source
-
+func convertRedisSource(srcRaw string, filePath string) error {
 	arr := strings.Split(srcRaw, ";")
 	pattern := "*"
 	if len(arr) == 2 {
@@ -156,57 +195,46 @@ func parseRedisSource(srcRaw string) ([]source, error) {
 
 	opts, err := redis.ParseURL(arr[0])
 	if err != nil {
-		return data, err
+		return err
 	}
 
 	rdb := redis.NewClient(opts)
-	vals, err := redisScanAll(rdb, pattern, 0, 1000, make(map[string]bool))
-	if err != nil {
-		return data, err
-	}
-
-	raw := strings.Join(vals, "\n")
-	os.WriteFile("foo", []byte(raw), 0644)
-	return parseSource(raw)
+	return redisScanAll(rdb, pattern, func(raw string) error {
+		return convertRawSource(raw, filePath)
+	})
 }
 
-// parseFileSource takes a source file and converts it to
-// the source array we use on the tool
-func parseFileSource(srcRaw string) ([]source, error) {
-	var data []source
-	if _, err := os.Stat(srcRaw); err != nil {
-		return data, err
-	}
+// sourceToFilePath takes a string, makes sure it is on the raw format we are
+// expecting on the tool and saves to a file path, returns that file path
+func sourceToFilePath(srcRaw string) (string, error) {
+	// TODO: if we have thousands and thousands this might crash! we want
+	//       to read with a cursor instead
+	//       for this to happen want to instead convert the redis and json
+	//       to file formats
 
-	raw, err := os.ReadFile(srcRaw)
-	if err != nil {
-		return data, err
-	}
-
-	return parseSource(string(raw))
-}
-
-// parseSource takes a raw and tries to figure what kind of source is and
-// converts to an array we use on the tool
-func parseSource(srcRaw string) ([]source, error) {
 	if len(srcRaw) == 0 {
-		return []source{}, errors.New("source is required")
+		return "", errors.New("source is required")
 	}
+
+	filePath := "tmp_source_" + strconv.Itoa(int(time.Now().Unix()))
 
 	// remove spaces so we can easily check for indexes
 	noSpacesRaw := removeSpaces(srcRaw)
 
 	if isJsonSource(noSpacesRaw) || isJsonSingleSource(noSpacesRaw) {
-		return parseJsonSource([]byte(srcRaw))
+		err := convertJsonSource([]byte(srcRaw), filePath)
+		return filePath, err
 	}
 
 	if isRedisSource(noSpacesRaw) {
-		return parseRedisSource(srcRaw)
+		err := convertRedisSource(srcRaw, filePath)
+		return filePath, err
 	}
 
 	if isRawSource(noSpacesRaw) {
-		return parseRawSource(srcRaw)
+		err := convertRawSource(srcRaw, filePath)
+		return filePath, err
 	}
 
-	return parseFileSource(srcRaw)
+	return srcRaw, nil
 }
