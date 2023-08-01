@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"log"
 	"os"
+	"strings"
 )
 
 func help() {
@@ -19,8 +21,52 @@ func stats(srcRaw string) error {
 		return err
 	}
 
-	// TODO: need to read one by one so that we dont screw ourselves
-	log.Println("file path", filePath)
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	count := 0
+	methodCounts := make(map[string]int)
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		v := strings.ToLower(scanner.Text())
+		if len(v) == 0 || strings.Index(v, "#") == 0 {
+			continue
+		}
+
+		count += 1
+
+		// count for request method
+		for _, k := range strings.Split(v, ";") {
+			if strings.Index(k, "requestmethod") == -1 {
+				continue
+			}
+
+			arr := strings.Split(k, ":")
+			if len(arr) != 2 {
+				continue
+			}
+
+			c, ok := methodCounts[arr[1]]
+			if !ok {
+				methodCounts[arr[1]] = 0
+			}
+
+			methodCounts[arr[1]] = c + 1
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	log.Println("count:", count)
+	for k, v := range methodCounts {
+		log.Println("method", k, v)
+	}
 
 	return nil
 }
