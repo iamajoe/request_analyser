@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-redis/redis"
 )
@@ -206,35 +204,32 @@ func convertRedisSource(srcRaw string, filePath string) error {
 
 // sourceToFilePath takes a string, makes sure it is on the raw format we are
 // expecting on the tool and saves to a file path, returns that file path
-func sourceToFilePath(srcRaw string) (string, error) {
-	// TODO: if we have thousands and thousands this might crash! we want
-	//       to read with a cursor instead
-	//       for this to happen want to instead convert the redis and json
-	//       to file formats
-
+func sourceToFilePath(srcRaw string, outputPath string) error {
 	if len(srcRaw) == 0 {
-		return "", errors.New("source is required")
+		return errors.New("source is required")
 	}
 
-	filePath := "tmp_source_" + strconv.Itoa(int(time.Now().Unix()))
+	if len(outputPath) == 0 {
+		return errors.New("output path is required")
+	}
 
 	// remove spaces so we can easily check for indexes
 	noSpacesRaw := removeSpaces(srcRaw)
 
 	if isJsonSource(noSpacesRaw) || isJsonSingleSource(noSpacesRaw) {
-		err := convertJsonSource([]byte(srcRaw), filePath)
-		return filePath, err
+		err := convertJsonSource([]byte(srcRaw), outputPath)
+		return err
 	}
 
 	if isRedisSource(noSpacesRaw) {
-		err := convertRedisSource(srcRaw, filePath)
-		return filePath, err
+		err := convertRedisSource(srcRaw, outputPath)
+		return err
 	}
 
 	if isRawSource(noSpacesRaw) {
-		err := convertRawSource(srcRaw, filePath)
-		return filePath, err
+		err := convertRawSource(srcRaw, outputPath)
+		return err
 	}
 
-	return srcRaw, nil
+	return nil
 }
