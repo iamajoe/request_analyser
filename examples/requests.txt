@@ -1,11 +1,11 @@
 # request status defaulting to "GET" method
-requestUrl:/status
+requestUrl:/status;;unix:1690979263
 
 # same status request but with the method in there
-requestUrl:/users/list;requestMethod:GET
+requestUrl:/users/list;;requestMethod:GET
 
 # a post request with a body
-requestUrl:/users/login;requestMethod:POST;requestBody:{"username":"amazing@email.com","password":"a_very_strong_password"}
+requestUrl:/users/login;;requestMethod:POST;;requestBody:{"username":"amazing@email.com","password":"a_very_strong_password"}
 
 # a post request with body and headers
-requestUrl:/notifications/count;requestMethod:POST;requestHeaders:{"Content-Type":"application/json","Authorization":"Bearer super_token"};requestBody:{"type": "feed"}
+requestUrl:/notifications/count;;requestMethod:POST;;requestHeaders:{"Content-Type":"application/json","Authorization":"Bearer super_token"};;requestBody:{"type": "feed"}

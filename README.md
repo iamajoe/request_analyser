@@ -34,6 +34,7 @@ Converts and validates a source to be used with the analyser
 ```json
 [
   {
+    "unix": 1690979263,
     "requestUrl": "/status"
   },
   {
@@ -75,22 +76,22 @@ Converts and validates a source to be used with the analyser
 
 #### Raw
 
-Separate each requests with a `\n` and each property is separated by a `;`. Values under properties will be separated by the first `:`.
+Separate each requests with a `\n` and each property is separated by `;;` (so it doesn't colide with the single `;` of for example the headers). Values under properties will be separated by the first `:`.
 `requestUrl` is required, all the other properties will be defaulted. `requestMethod` defaults to `GET`.
 You can setup comments using `#` on the first character.
 
 ```
 # request status defaulting to "GET" method
-requestUrl:/status
+requestUrl:/status;;unix:1690979263
 
 # same status request but with the method in there
-requestUrl:/users/list;requestMethod:GET
+requestUrl:/users/list;;requestMethod:GET
 
 # a post request with a body
-requestUrl:/users/login;requestMethod:POST;requestBody:{"username":"amazing@email.com","password":"a_very_strong_password"}
+requestUrl:/users/login;;requestMethod:POST;;requestBody:{"username":"amazing@email.com","password":"a_very_strong_password"}
 
 # a post request with body and headers
-requestUrl:/notifications/count;requestMethod:POST;requestHeaders:{"Content-Type":"application/json","Authorization":"Bearer super_token"};requestBody:{"type": "feed"}
+requestUrl:/notifications/count;requestMethod:POST;;requestHeaders:{"Content-Type":"application/json","Authorization":"Bearer super_token"};requestBody:{"type": "feed"}
 ```
 
 ```bash
@@ -126,4 +127,26 @@ Retrieve a count statistic of the requests
 
 ```bash
 ./bin/request_analyser stats -i "<file_path>"
+```
+
+## Run requests
+
+Runs the requests from the parsed file
+
+```bash
+# run with 1 concurrent job with a base url
+./bin/request_analyser run -i "<file_path>" -b "http://localhost:4040"
+
+# run with 100 concurrent jobs without base url (if http|https provided)
+./bin/request_analyser run -i "<file_path>" -c 100
+
+# set a new request every 10 ms (does not work with -s)
+./bin/request_analyser run -i "<file_path>" -t 10
+
+# if "unix" is provided and valid unix, speeds up by 10 (does not work with -t)
+./bin/request_analyser run -i "<file_path>" -s 10
+
+# filters a pattern of endpoints / method
+# wildcards acepted on endpoint and method, endpoints are regex based
+./bin/request_analyser run -i "<file_path>" -f "['POST:*', *:users\/create]"
 ```

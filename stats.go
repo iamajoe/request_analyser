@@ -36,7 +36,7 @@ func stats(inputPath string, mostUsedRequestLimit int) (statsData, error) {
 	}
 
 	if len(inputPath) == 0 {
-		return data, errors.New("output path is required")
+		return data, errors.New("input path is required")
 	}
 
 	file, err := os.Open(inputPath)
@@ -51,51 +51,36 @@ func stats(inputPath string, mostUsedRequestLimit int) (statsData, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		v := strings.ToLower(scanner.Text())
-		if len(v) == 0 || strings.Index(v, "#") == 0 {
+		sources, err := rawToSource(v)
+		if err != nil {
+			return data, err
+		}
+
+		if len(sources) == 0 {
 			continue
 		}
 
-		data.count += 1
+		// move per source on the raw line (in theory, only 1)
+		for _, s := range sources {
+			data.count += 1
 
-		reqMethod := ""
-		reqUrl := ""
+			// count method
+			c, _ := data.requestMethodCount[s.RequestMethod]
+			data.requestMethodCount[s.RequestMethod] = c + 1
 
-		// count for request method
-		for _, k := range strings.Split(v, ";") {
-			arr := strings.Split(k, ":")
-			if len(arr) != 2 {
-				continue
+			// count the request
+			key := s.RequestMethod + "_" + s.RequestUrl
+			req, ok := reqStats[key]
+			if !ok {
+				req = &reqStat{
+					count:  0,
+					method: s.RequestMethod,
+					url:    s.RequestUrl,
+				}
+				reqStats[key] = req
 			}
-
-			// handle request method
-			if strings.Index(k, "requestmethod") != -1 {
-				reqMethod = arr[1]
-				continue
-			}
-
-			// handle request url
-			if strings.Index(k, "requesturl") != -1 {
-				reqUrl = arr[1]
-				continue
-			}
+			req.count += 1
 		}
-
-		// count method
-		c, _ := data.requestMethodCount[reqMethod]
-		data.requestMethodCount[reqMethod] = c + 1
-
-		// count the request
-		key := reqMethod + "_" + reqUrl
-		req, ok := reqStats[key]
-		if !ok {
-			req = &reqStat{
-				count:  0,
-				method: reqMethod,
-				url:    reqUrl,
-			}
-			reqStats[key] = req
-		}
-		req.count += 1
 	}
 
 	if err := scanner.Err(); err != nil {
