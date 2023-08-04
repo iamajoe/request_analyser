@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"log"
@@ -18,6 +19,7 @@ type runnerWriter struct {
 	output string
 }
 
+// Write will receive a row and write it to csv and stdout
 func (w *runnerWriter) Write(v []byte) (int, error) {
 	// send to result tmp file
 	f, err := os.OpenFile(w.output,
@@ -27,12 +29,34 @@ func (w *runnerWriter) Write(v []byte) (int, error) {
 		return 1, err
 	}
 
+	// write to csv
+	arr := strings.Split(string(v), ";;")
+	values := []string{}
+	for _, v := range arr {
+		arr := strings.SplitN(v, ":", 1)
+		if len(arr) != 2 {
+			continue
+		}
+
+		values = append(values, arr[1])
+	}
+
+	// TODO: split url by "/" and we can count and average per requests at each namespace
+	//       but it should be at the end and using the csv
+	///      should maybe use "stats" for this?
+
+	wcsv := csv.NewWriter(f)
+	err = wcsv.Write(values)
+	if err != nil {
+		return 1, err
+	}
+	wcsv.Flush()
+
 	if _, err := f.Write(v); err != nil {
 		return 1, err
 	}
 
-	// send to stdout
-	arr := strings.Split(string(v), ";;")
+	// write to stdout
 	log.Println("===============================")
 	for _, v := range arr {
 		log.Println("-", v)
@@ -54,7 +78,7 @@ func main() {
 
 	runFs := flag.NewFlagSet("run", flag.ExitOnError)
 	runInputRaw := runFs.String("i", "", "input with parsed records")
-	runOutputRaw := runFs.String("o", "tmp_run_result", "output with stat results")
+	runOutputRaw := runFs.String("o", "tmp_run_result.csv", "output with results")
 	runBaseRaw := runFs.String(
 		"b",
 		"http://localhost:4040",

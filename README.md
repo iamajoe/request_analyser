@@ -133,8 +133,8 @@ Retrieve a count statistic of the requests
 Runs the requests from the parsed file
 
 ```bash
-# run with input and an output file for the statistics
-./bin/request_analyser run -i "<file_path>" -o "<file_path>"
+# run with input and a csv output file for the statistics
+./bin/request_analyser run -i "<file_path>" -o "<file_path>.csv"
 
 # run with 1 concurrent job with a base url
 ./bin/request_analyser run -i "<file_path>" -b "http://localhost:4040"
