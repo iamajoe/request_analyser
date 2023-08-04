@@ -1,5 +1,5 @@
 # request status defaulting to "GET" method
-requestUrl:/status;;unix:1690979263
+requestUrl:/status
 
 # same status request but with the method in there
 requestUrl:/users/list;;requestMethod:GET

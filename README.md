@@ -34,7 +34,6 @@ Converts and validates a source to be used with the analyser
 ```json
 [
   {
-    "unix": 1690979263,
     "requestUrl": "/status"
   },
   {
@@ -82,7 +81,7 @@ You can setup comments using `#` on the first character.
 
 ```
 # request status defaulting to "GET" method
-requestUrl:/status;;unix:1690979263
+requestUrl:/status
 
 # same status request but with the method in there
 requestUrl:/users/list;;requestMethod:GET
@@ -134,17 +133,17 @@ Retrieve a count statistic of the requests
 Runs the requests from the parsed file
 
 ```bash
+# run with input and an output file for the statistics
+./bin/request_analyser run -i "<file_path>" -o "<file_path>"
+
 # run with 1 concurrent job with a base url
 ./bin/request_analyser run -i "<file_path>" -b "http://localhost:4040"
 
 # run with 100 concurrent jobs without base url (if http|https provided)
 ./bin/request_analyser run -i "<file_path>" -c 100
 
-# set a new request every 10 ms (does not work with -s)
+# set a new request every 10 ms
 ./bin/request_analyser run -i "<file_path>" -t 10
-
-# if "unix" is provided and valid unix, speeds up by 10 (does not work with -t)
-./bin/request_analyser run -i "<file_path>" -s 10
 
 # filters a pattern of endpoints / method
 # wildcards acepted on endpoint and method, endpoints are regex based

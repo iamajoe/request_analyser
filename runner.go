@@ -5,7 +5,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"log"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"reflect"
@@ -25,6 +26,7 @@ type queueJob struct {
 type queue struct {
 	runningCount int
 	list         []source
+	informer     io.Writer
 
 	baseUrl     string
 	timerMs     int
@@ -51,7 +53,7 @@ func getCpuAvgPercent() float64 {
 	return avg
 }
 
-func newQueue(baseUrl string, timerMs int, concurrency int) *queue {
+func newQueue(baseUrl string, timerMs int, concurrency int, informer io.Writer) *queue {
 	// make sure the lest character is a "/" so it is easy to join
 	parsedBaseUrl := baseUrl
 	if parsedBaseUrl[len(parsedBaseUrl)-1:] != "/" {
@@ -61,6 +63,7 @@ func newQueue(baseUrl string, timerMs int, concurrency int) *queue {
 	return &queue{
 		runningCount: 0,
 		list:         []source{},
+		informer:     informer,
 
 		baseUrl:     parsedBaseUrl,
 		timerMs:     timerMs,
@@ -155,8 +158,22 @@ func (q *queue) nextJob() {
 
 	go func(job source) {
 		elapsed, cpuUsed, memUsed, err := q.jobHandler(job)
-		// TODO: we need to inform of error and time back
-		log.Println(elapsed, cpuUsed, memUsed, err)
+
+		if q.informer != nil {
+			// setup a message to inform
+			msg := fmt.Sprintf(
+				"request_method:%s;;request_url:%s",
+				job.RequestMethod,
+				job.RequestUrl,
+			)
+			if err != nil {
+				msg = fmt.Sprintf("%s;;err:%s", msg, err.Error())
+			} else {
+				msg = fmt.Sprintf("%s;;elapsed_time:%d;;cpu_usage:%.2f;;mem_usage:%.2f", elapsed, cpuUsed, memUsed)
+			}
+
+			_, _ = q.informer.Write([]byte(msg))
+		}
 
 		// make sure we remove the job from the running list
 		q.mu.Lock()
@@ -236,8 +253,8 @@ func run(
 	baseUrl string,
 	concurrency int,
 	timerMs int,
-	speedFactor int,
 	ignorePatterns []string,
+	informer io.Writer,
 ) error {
 	if len(inputPath) == 0 {
 		return errors.New("input path is required")
@@ -249,10 +266,7 @@ func run(
 	}
 	defer file.Close()
 
-	// TODO: should probably retrieve some stats
-	// TODO: speedFactor based on the source unix
-
-	q := newQueue(baseUrl, timerMs, concurrency)
+	q := newQueue(baseUrl, timerMs, concurrency, informer)
 
 	// run a scanner line by line on the file
 	scanner := bufio.NewScanner(file)
@@ -272,9 +286,6 @@ func run(
 				continue
 			}
 
-			// TODO: handle the filter patterns. GET:/*, *:/users/create
-
-			// TODO: what about information about elapsed time and errors?
 			q.addToQueue(s)
 		}
 
